@@ -361,6 +361,25 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:cen
 .float-emoji{position:absolute;pointer-events:none;z-index:3;font-size:1.8rem;opacity:0;user-select:none;filter:drop-shadow(0 0 8px rgba(245,196,0,.3));will-change:transform}
 @keyframes floatAcross{0%{opacity:0;transform:translateY(0) rotate(var(--rot-start))}5%{opacity:var(--op)}50%{opacity:var(--op);transform:translateY(var(--float-y)) rotate(var(--rot-mid))}95%{opacity:var(--op)}100%{opacity:0;transform:translateY(0) rotate(var(--rot-end))}}
 
+
+.htrade{display:grid;grid-template-columns:18px 1fr 1fr auto;gap:.5rem;align-items:center;padding:.5rem .65rem;border-radius:3px;transition:background .2s;cursor:default}
+.htrade:hover{background:rgba(245,196,0,.04)}
+.ht-icon{font-size:.75rem;text-align:center;font-weight:700}
+.ht-name{font-family:var(--display);font-size:.88rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+.ht-sub{font-family:var(--mono);font-size:.58rem;color:var(--dim);letter-spacing:.04em}
+.ht-status{font-family:var(--mono);font-size:.6rem;font-weight:600;letter-spacing:.08em;text-align:right;white-space:nowrap}
+.htrade-done{opacity:.55}
+.htrade-done .ht-icon{color:var(--green)}
+.htrade-active{background:rgba(245,196,0,.06);border-left:2px solid var(--yellow)}
+.htrade-active .ht-icon{color:var(--yellow)}
+.htrade-next .ht-icon{color:var(--blue)}
+.htrade-wait .ht-icon{color:var(--dimmer)}
+
+/* fix hero layout on mobile */
+@media(max-width:900px){
+  .hero-inner{grid-template-columns:1fr !important}
+}
+
 </style>
 </head>
 <body>
@@ -394,19 +413,77 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:cen
     <div class="hero-bg"></div>
     <div class="hero-orb hero-o1"></div><div class="hero-orb hero-o2"></div>
     <div id="floatContainer" style="position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:3"></div>
-    <div class="hero-inner">
-      <div class="hero-eyebrow"><span class="hero-eye-line"></span>For General Contractors</div>
-      <h1>Stop<br><span class="y">herding</span><br><span class="ghost">subs.</span></h1>
-      <p class="hero-sub">SubSync automatically notifies every subcontractor exactly when it's their turn — no phone calls, no texts, no wasted trips. One tap delay? Every sub's schedule shifts instantly.</p>
-      <div class="hero-btns">
-        <button class="btn-prim" onclick="window.open('https://calendly.com/simonpr-lloyd/30min','_blank')">Book a Free Demo Call</button>
-        <button class="btn-sec" onclick="showV('sub')">See How Subs Use It</button>
+    <div class="hero-inner" style="display:grid;grid-template-columns:1fr 1fr;gap:4rem;align-items:center;width:100%;max-width:1300px">
+      <!-- LEFT -->
+      <div>
+        <div class="hero-eyebrow"><span class="hero-eye-line"></span>For General Contractors</div>
+        <h1>Stop<br><span class="y">herding</span><br><span class="ghost">subs.</span></h1>
+        <p class="hero-sub">SubSync automatically notifies every subcontractor exactly when it's their turn — no phone calls, no texts, no wasted trips. One tap delay? Every sub's schedule shifts instantly.</p>
+        <div class="hero-btns">
+          <button class="btn-prim" onclick="window.open('https://calendly.com/simonpr-lloyd/30min','_blank')">Book a Free Demo Call</button>
+          <button class="btn-sec" onclick="showV('sub')">See How Subs Use It</button>
+        </div>
+        <div class="hero-stats">
+          <div class="hstat"><span class="hstat-n">$177B</span><span class="hstat-l">Lost annually to<br>coord. failures</span></div>
+          <div class="hstat"><span class="hstat-n">4 hrs</span><span class="hstat-l">GC spends per day<br>on phone calls</span></div>
+          <div class="hstat"><span class="hstat-n">$99</span><span class="hstat-l">Per month to<br>fix all of it</span></div>
+        </div>
       </div>
-      <div class="hero-stats">
-        <div class="hstat"><span class="hstat-n">$177B</span><span class="hstat-l">Lost annually to<br>coord. failures</span></div>
-        <div class="hstat"><span class="hstat-n">4 hrs</span><span class="hstat-l">GC spends per day<br>on phone calls</span></div>
-        <div class="hstat"><span class="hstat-n">23%</span><span class="hstat-l">Of job delays from<br>wrong show-up dates</span></div>
-        <div class="hstat"><span class="hstat-n">$99</span><span class="hstat-l">Per month to<br>fix all of it</span></div>
+
+      <!-- RIGHT — LIVE JOB CARD WIDGET -->
+      <div style="position:relative;z-index:5">
+        <div style="background:var(--bg2);border:1px solid rgba(245,196,0,.2);position:relative;overflow:hidden">
+          <!-- top bar -->
+          <div style="background:var(--yellow);padding:.55rem 1.1rem;display:flex;align-items:center;justify-content:space-between">
+            <span style="font-family:var(--display);font-size:.85rem;font-weight:900;letter-spacing:.08em;color:var(--bg);text-transform:uppercase">Live Job — Oakridge Residence</span>
+            <span style="font-family:var(--mono);font-size:.6rem;color:rgba(14,14,14,.6);letter-spacing:.1em" id="heroTime">--:--</span>
+          </div>
+          <!-- progress -->
+          <div style="padding:1rem 1.1rem;border-bottom:1px solid var(--border)">
+            <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:.6rem;color:var(--dim);margin-bottom:.4rem"><span>Overall Progress</span><span style="color:var(--yellow)">62%</span></div>
+            <div style="height:6px;background:var(--bg5);overflow:hidden;border-radius:2px">
+              <div style="height:100%;width:62%;background:linear-gradient(90deg,var(--yellow),var(--yellow2));position:relative;overflow:hidden;border-radius:2px">
+                <div style="position:absolute;top:0;left:-100%;width:100%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.35),transparent);animation:shimmer 2s ease-in-out infinite"></div>
+              </div>
+            </div>
+          </div>
+          <!-- trade rows -->
+          <div style="padding:.75rem 1.1rem;display:flex;flex-direction:column;gap:.4rem" id="heroTrades">
+            <div class="htrade htrade-done"><span class="ht-icon">✓</span><span class="ht-name">Framing</span><span class="ht-sub">Premier Framing Co.</span><span class="ht-status" style="color:var(--green)">COMPLETE</span></div>
+            <div class="htrade htrade-done"><span class="ht-icon">✓</span><span class="ht-name">Foundation</span><span class="ht-sub">TX Concrete LLC</span><span class="ht-status" style="color:var(--green)">COMPLETE</span></div>
+            <div class="htrade htrade-active"><span class="ht-icon">▶</span><span class="ht-name">Electrical</span><span class="ht-sub">TXState Electric</span><span class="ht-status" style="color:var(--yellow)">ON SITE NOW</span></div>
+            <div class="htrade htrade-next"><span class="ht-icon">▷</span><span class="ht-name">Plumbing</span><span class="ht-sub">A&amp;R Plumbing</span><span class="ht-status" style="color:var(--blue)">STARTS MAY 3</span></div>
+            <div class="htrade htrade-wait"><span class="ht-icon">·</span><span class="ht-name">HVAC</span><span class="ht-sub">CoolAir LLC</span><span class="ht-status" style="color:var(--dim)">WAITING</span></div>
+            <div class="htrade htrade-wait"><span class="ht-icon">·</span><span class="ht-name">Drywall</span><span class="ht-sub">Pro Walls TX</span><span class="ht-status" style="color:var(--dim)">WAITING</span></div>
+            <div class="htrade htrade-wait"><span class="ht-icon">·</span><span class="ht-name">Painting</span><span class="ht-sub">ColorRight</span><span class="ht-status" style="color:var(--dim)">WAITING</span></div>
+          </div>
+          <!-- notification sim -->
+          <div style="margin:.5rem 1.1rem 1.1rem;padding:.75rem 1rem;background:rgba(34,197,94,.07);border:1px solid rgba(34,197,94,.2);display:flex;align-items:flex-start;gap:.65rem" id="heroNotif">
+            <span style="font-size:1rem;flex-shrink:0">📲</span>
+            <div>
+              <div style="font-family:var(--mono);font-size:.6rem;color:var(--green);letter-spacing:.1em;margin-bottom:.2rem">AUTO-TEXT SENT</div>
+              <div style="font-size:.75rem;color:var(--muted);line-height:1.45">"Hey A&R Plumbing — Electrical almost done at Oakridge. Your start <strong style="color:var(--off)">May 3 confirmed.</strong> Reply Y."</div>
+            </div>
+          </div>
+          <!-- footer row -->
+          <div style="padding:.65rem 1.1rem;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--bg3)">
+            <div style="font-family:var(--mono);font-size:.58rem;color:var(--dim);letter-spacing:.08em">4821 Oakridge Blvd, Plano TX</div>
+            <div style="display:flex;align-items:center;gap:.4rem;font-family:var(--mono);font-size:.58rem;color:var(--green)"><div style="width:5px;height:5px;border-radius:50%;background:var(--green);animation:pulse 1.5s infinite"></div>LIVE</div>
+          </div>
+        </div>
+
+        <!-- second mini card — delay cascade teaser -->
+        <div style="background:var(--bg3);border:1px solid rgba(239,68,68,.2);padding:.85rem 1.1rem;margin-top:.75rem;display:flex;align-items:center;gap:.85rem;cursor:pointer;transition:all .3s" onmouseover="this.style.borderColor='rgba(239,68,68,.5)'" onmouseout="this.style.borderColor='rgba(239,68,68,.2)'" onclick="showV('dashboard')">
+          <span style="font-size:1.4rem;flex-shrink:0">🌧️</span>
+          <div style="flex:1">
+            <div style="font-family:var(--display);font-size:.88rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;color:var(--red);margin-bottom:.2rem">Rain Delay — Meridian Job</div>
+            <div style="font-family:var(--mono);font-size:.62rem;color:var(--dim)">6 subs need reschedule → one tap fixes all</div>
+          </div>
+          <div style="font-family:var(--display);font-size:.78rem;font-weight:800;color:var(--yellow);letter-spacing:.06em;white-space:nowrap">See It →</div>
+        </div>
+
+        <!-- glow effect behind card -->
+        <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:120%;height:120%;background:radial-gradient(ellipse,rgba(245,196,0,.07) 0%,transparent 65%);pointer-events:none;z-index:-1"></div>
       </div>
     </div>
   </div>
@@ -924,6 +1001,37 @@ function confirmJob(btn){
 }
 
 
+
+// ── HERO CLOCK
+setInterval(function(){
+  var el=document.getElementById("heroTime");
+  if(!el)return;
+  var n=new Date(),h=n.getHours().toString().padStart(2,"0"),m=n.getMinutes().toString().padStart(2,"0");
+  el.textContent=h+":"+m;
+},1000);
+// init immediately
+(function(){var el=document.getElementById("heroTime");if(!el)return;var n=new Date(),h=n.getHours().toString().padStart(2,"0"),m=n.getMinutes().toString().padStart(2,"0");el.textContent=h+":"+m;})();
+
+// ── HERO NOTIF CYCLE
+var heroNotifs=[
+  {sub:"A&R Plumbing",msg:"Electrical almost done at Oakridge. Your start <strong style='color:var(--off)'>May 3 confirmed.</strong> Reply Y."},
+  {sub:"CoolAir HVAC",msg:"Plumbing rough-in complete at Oakridge. You're up <strong style='color:var(--off)'>May 7.</strong> Confirm?"},
+  {sub:"Pro Walls TX",msg:"Inspection passed ✅ Drywall start <strong style='color:var(--off)'>May 12 confirmed.</strong> Reply Y."},
+  {sub:"Premier Framing",msg:"Rain delay at Meridian. New start date: <strong style='color:var(--off)'>May 9.</strong> Updated automatically."},
+];
+var hni=0;
+setInterval(function(){
+  hni=(hni+1)%heroNotifs.length;
+  var n=heroNotifs[hni];
+  var el=document.getElementById("heroNotif");
+  if(!el)return;
+  el.style.opacity="0";el.style.transform="translateY(5px)";
+  setTimeout(function(){
+    el.querySelector("div div:last-child").innerHTML='"Hey '+n.sub+' — '+n.msg+'"';
+    el.style.transition="all .4s";el.style.opacity="1";el.style.transform="translateY(0)";
+  },400);
+},4000);
+
 // ── FLOATING CONSTRUCTION EMOJIS
 (function(){
   var emojis=["🏗️","🔨","⚡","🔧","🪛","🏠","🧱","🪚","🔩","⚙️","🪜","📐","📏","🔑","🚜","🏚️","🛠️","🪝","🧰","🚧"];
@@ -1018,6 +1126,25 @@ function toast(msg,title,type){
   #mobileCTA{display:flex !important}
   body{padding-bottom:70px}
 }
+
+.htrade{display:grid;grid-template-columns:18px 1fr 1fr auto;gap:.5rem;align-items:center;padding:.5rem .65rem;border-radius:3px;transition:background .2s;cursor:default}
+.htrade:hover{background:rgba(245,196,0,.04)}
+.ht-icon{font-size:.75rem;text-align:center;font-weight:700}
+.ht-name{font-family:var(--display);font-size:.88rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase}
+.ht-sub{font-family:var(--mono);font-size:.58rem;color:var(--dim);letter-spacing:.04em}
+.ht-status{font-family:var(--mono);font-size:.6rem;font-weight:600;letter-spacing:.08em;text-align:right;white-space:nowrap}
+.htrade-done{opacity:.55}
+.htrade-done .ht-icon{color:var(--green)}
+.htrade-active{background:rgba(245,196,0,.06);border-left:2px solid var(--yellow)}
+.htrade-active .ht-icon{color:var(--yellow)}
+.htrade-next .ht-icon{color:var(--blue)}
+.htrade-wait .ht-icon{color:var(--dimmer)}
+
+/* fix hero layout on mobile */
+@media(max-width:900px){
+  .hero-inner{grid-template-columns:1fr !important}
+}
+
 </style>
 
 </body>
