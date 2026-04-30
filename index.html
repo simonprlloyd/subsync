@@ -356,6 +356,11 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:cen
   .jobs-grid{grid-template-columns:1fr}
   #view-sub{flex-direction:column;align-items:center;padding:5rem 1.25rem 3rem}
 }
+
+/* ── FLOATING CONSTRUCTION EMOJIS ── */
+.float-emoji{position:absolute;pointer-events:none;z-index:3;font-size:1.8rem;opacity:0;user-select:none;filter:drop-shadow(0 0 8px rgba(245,196,0,.3));will-change:transform}
+@keyframes floatAcross{0%{opacity:0;transform:translateY(0) rotate(var(--rot-start))}5%{opacity:var(--op)}50%{opacity:var(--op);transform:translateY(var(--float-y)) rotate(var(--rot-mid))}95%{opacity:var(--op)}100%{opacity:0;transform:translateY(0) rotate(var(--rot-end))}}
+
 </style>
 </head>
 <body>
@@ -372,12 +377,12 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:cen
   </div>
   <div class="nav-tabs">
     <button class="ntab on" onclick="showV('landing')">Home</button>
-    <button class="ntab" onclick="showV('dashboard')">&#128202; <span>Dashboard</span></button>
+    <button class="ntab" onclick="window.open('https://calendly.com/simonpr-lloyd/30min','_blank')">&#128202; <span>Dashboard</span></button>
     <button class="ntab" onclick="showV('sub')">&#128247; <span>Sub View</span></button>
   </div>
   <div class="nav-right">
     <div class="nav-live"><div class="nlive-dot"></div>LIVE DEMO</div>
-    <button class="nav-cta" onclick="showV('dashboard')">See It Work</button>
+    <button class="nav-cta" onclick="window.open('https://calendly.com/simonpr-lloyd/30min','_blank')">Book Free Call</button>
   </div>
 </nav>
 
@@ -388,13 +393,14 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:cen
   <div class="hero">
     <div class="hero-bg"></div>
     <div class="hero-orb hero-o1"></div><div class="hero-orb hero-o2"></div>
+    <div id="floatContainer" style="position:absolute;inset:0;overflow:hidden;pointer-events:none;z-index:3"></div>
     <div class="hero-inner">
       <div class="hero-eyebrow"><span class="hero-eye-line"></span>For General Contractors</div>
       <h1>Stop<br><span class="y">herding</span><br><span class="ghost">subs.</span></h1>
       <p class="hero-sub">SubSync automatically notifies every subcontractor exactly when it's their turn — no phone calls, no texts, no wasted trips. One tap delay? Every sub's schedule shifts instantly.</p>
       <div class="hero-btns">
-        <button class="btn-prim" onclick="showV('dashboard')">See the Dashboard</button>
-        <button class="btn-sec" onclick="showV('sub')">Sub's Phone View</button>
+        <button class="btn-prim" onclick="window.open('https://calendly.com/simonpr-lloyd/30min','_blank')">Book a Free Demo Call</button>
+        <button class="btn-sec" onclick="showV('sub')">See How Subs Use It</button>
       </div>
       <div class="hero-stats">
         <div class="hstat"><span class="hstat-n">$177B</span><span class="hstat-l">Lost annually to<br>coord. failures</span></div>
@@ -501,7 +507,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:cen
           <div class="pf"><span class="pf-y">✦</span>One-tap delay cascade</div>
           <div class="pf"><span class="pf-y">✦</span>Basic job timeline</div>
         </div>
-        <button class="p-btn" onclick="showV('dashboard')">See Demo</button>
+        <button class="p-btn" onclick="window.open('https://calendly.com/simonpr-lloyd/30min','_blank')">Book Free 15-Min Call</button>
       </div>
       <div class="pcard2 feat reveal">
         <div class="p-badge">POPULAR</div>
@@ -516,7 +522,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:cen
           <div class="pf"><span class="pf-y">✦</span>Cost overrun alerts</div>
           <div class="pf"><span class="pf-y">✦</span>Client progress reports</div>
         </div>
-        <button class="p-btn" onclick="showV('dashboard')">See Demo</button>
+        <button class="p-btn" onclick="window.open('https://calendly.com/simonpr-lloyd/30min','_blank')">Book Free 15-Min Call</button>
       </div>
       <div class="pcard2 reveal">
         <div class="p-plan">Enterprise</div>
@@ -530,7 +536,7 @@ nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:cen
           <div class="pf"><span class="pf-y">✦</span>White-label client portal</div>
           <div class="pf"><span class="pf-y">✦</span>Priority phone support</div>
         </div>
-        <button class="p-btn" onclick="showV('dashboard')">See Demo</button>
+        <button class="p-btn" onclick="window.open('https://calendly.com/simonpr-lloyd/30min','_blank')">Book Free 15-Min Call</button>
       </div>
     </div>
   </div>
@@ -917,6 +923,45 @@ function confirmJob(btn){
   btn.disabled=true;
 }
 
+
+// ── FLOATING CONSTRUCTION EMOJIS
+(function(){
+  var emojis=["🏗️","🔨","⚡","🔧","🪛","🏠","🧱","🪚","🔩","⚙️","🪜","📐","📏","🔑","🚜","🏚️","🛠️","🪝","🧰","🚧"];
+  var container=document.getElementById("floatContainer");
+  if(!container)return;
+  
+  function spawnEmoji(){
+    var el=document.createElement("div");
+    el.className="float-emoji";
+    var emoji=emojis[Math.floor(Math.random()*emojis.length)];
+    el.textContent=emoji;
+    
+    // Random position, speed, float amount
+    var startX=Math.random()*95+2;
+    var startY=Math.random()*80+10;
+    var floatY=(Math.random()-.5)*60;
+    var dur=Math.random()*8+6;
+    var delay=Math.random()*3;
+    var rotStart=(Math.random()-0.5)*30;
+    var rotMid=(Math.random()-0.5)*20;
+    var rotEnd=(Math.random()-0.5)*30;
+    var op=Math.random()*.18+.06;
+    var scale=Math.random()*.6+.5;
+    
+    el.style.cssText="left:"+startX+"%;top:"+startY+"%;font-size:"+(scale*2)+"rem;--rot-start:"+rotStart+"deg;--rot-mid:"+rotMid+"deg;--rot-end:"+rotEnd+"deg;--float-y:"+floatY+"px;--op:"+op+";animation:floatAcross "+dur+"s "+delay+"s ease-in-out forwards";
+    
+    container.appendChild(el);
+    setTimeout(function(){el.remove()},((dur+delay)*1000)+500);
+  }
+  
+  // Spawn initial batch
+  for(var i=0;i<12;i++){
+    setTimeout(spawnEmoji, i*400);
+  }
+  // Keep spawning
+  setInterval(spawnEmoji, 800);
+})();
+
 // ── TOAST
 function toast(msg,title,type){
   var box=document.getElementById("notifBox");if(!box)return;
@@ -926,5 +971,54 @@ function toast(msg,title,type){
   setTimeout(function(){t.style.opacity="0";t.style.transform="translateX(20px)";t.style.transition="all .4s";setTimeout(function(){t.remove()},400)},4500);
 }
 </script>
+
+<!-- CONTACT STRIP -->
+<div style="background:var(--yellow);padding:3rem 2.5rem;text-align:center;position:relative;overflow:hidden">
+  <div style="position:absolute;inset:0;background:repeating-linear-gradient(45deg,transparent,transparent 20px,rgba(0,0,0,.03) 20px,rgba(0,0,0,.03) 21px)"></div>
+  <div style="position:relative;z-index:1">
+    <div style="font-family:var(--display);font-size:clamp(2rem,5vw,4rem);font-weight:900;text-transform:uppercase;letter-spacing:.03em;color:var(--bg);line-height:1;margin-bottom:.5rem">Ready to stop herding subs?</div>
+    <p style="font-size:1rem;color:rgba(14,14,14,.7);margin-bottom:2rem;font-weight:400;max-width:500px;margin-left:auto;margin-right:auto">Book a free 15-minute call with Simon. He'll walk you through the demo live and set up your first job on the call.</p>
+    <div style="display:flex;gap:1rem;justify-content:center;flex-wrap:wrap">
+      <a href="https://calendly.com/simonpr-lloyd/30min" target="_blank" style="text-decoration:none">
+        <button style="padding:1rem 2.5rem;background:var(--bg);color:var(--yellow);border:none;font-family:var(--display);font-size:1rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;transition:all .3s;clip-path:polygon(6px 0%,100% 0%,100% calc(100% - 6px),calc(100% - 6px) 100%,0% 100%,0% 6px)">📅 Book Free 15-Min Call</button>
+      </a>
+      <a href="tel:2249448652" style="text-decoration:none">
+        <button style="padding:1rem 2.5rem;background:transparent;color:var(--bg);border:2px solid var(--bg);font-family:var(--display);font-size:1rem;font-weight:900;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;transition:all .3s">📞 Call Simon — (224) 944-8652</button>
+      </a>
+    </div>
+    <div style="margin-top:1.25rem;font-family:var(--mono);font-size:.65rem;color:rgba(14,14,14,.5);letter-spacing:.1em">NO CONTRACT · CANCEL ANYTIME · SETUP IN 15 MINUTES</div>
+  </div>
+</div>
+
+<!-- FOOTER -->
+<div style="background:var(--bg);border-top:1px solid var(--border);padding:2rem 2.5rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:1rem">
+  <div>
+    <div style="font-family:var(--display);font-size:1.1rem;font-weight:900;letter-spacing:.04em;margin-bottom:.2rem">Sub<span style="color:var(--yellow)">Sync</span></div>
+    <div style="font-family:var(--mono);font-size:.58rem;color:var(--dim);letter-spacing:.1em">BUILT BY SIMON · (224) 944-8652</div>
+  </div>
+  <div style="display:flex;gap:1.5rem;flex-wrap:wrap">
+    <a href="tel:2249448652" style="font-family:var(--mono);font-size:.65rem;color:var(--dim);letter-spacing:.08em;transition:color .2s" onmouseover="this.style.color='var(--yellow)'" onmouseout="this.style.color='var(--dim)'">(224) 944-8652</a>
+    <a href="https://calendly.com/simonpr-lloyd/30min" target="_blank" style="font-family:var(--mono);font-size:.65rem;color:var(--dim);letter-spacing:.08em;transition:color .2s" onmouseover="this.style.color='var(--yellow)'" onmouseout="this.style.color='var(--dim)'">Book a Call</a>
+    <span style="font-family:var(--mono);font-size:.65rem;color:var(--dimmer);letter-spacing:.08em">© 2026 SubSync</span>
+  </div>
+</div>
+
+
+<!-- MOBILE STICKY CTA -->
+<div style="display:none;position:fixed;bottom:0;left:0;right:0;z-index:200;padding:.75rem 1rem;background:rgba(14,14,14,.97);border-top:1px solid var(--border);gap:.5rem" id="mobileCTA">
+  <a href="https://calendly.com/simonpr-lloyd/30min" target="_blank" style="flex:1;text-decoration:none;display:flex">
+    <button style="flex:1;padding:.75rem;background:var(--yellow);color:var(--bg);border:none;font-family:var(--display);font-size:.88rem;font-weight:900;letter-spacing:.06em;text-transform:uppercase;cursor:pointer">📅 Book Free Call</button>
+  </a>
+  <a href="tel:2249448652" style="text-decoration:none;display:flex">
+    <button style="padding:.75rem 1.25rem;background:var(--bg3);color:var(--yellow);border:1px solid rgba(245,196,0,.25);font-family:var(--display);font-size:.88rem;font-weight:900;letter-spacing:.06em;text-transform:uppercase;cursor:pointer">📞 Call</button>
+  </a>
+</div>
+<style>
+@media(max-width:700px){
+  #mobileCTA{display:flex !important}
+  body{padding-bottom:70px}
+}
+</style>
+
 </body>
 </html>
