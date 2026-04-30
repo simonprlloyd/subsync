@@ -1,0 +1,930 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>SubSync — Construction Coordination That Actually Works</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800;900&family=Barlow:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet"/>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0E0E0E;--bg2:#141414;--bg3:#1A1A1A;--bg4:#202020;--bg5:#272727;
+  --yellow:#F5C400;--yellow2:#FFD740;--yellow-dim:rgba(245,196,0,.12);
+  --orange:#FF6B00;--orange-dim:rgba(255,107,0,.12);
+  --w:#FFFFFF;--off:#F0EDE6;
+  --muted:rgba(240,237,230,.58);--dim:rgba(240,237,230,.28);--dimmer:rgba(240,237,230,.14);
+  --green:#22C55E;--red:#EF4444;--blue:#38BDF8;--purple:#A78BFA;
+  --display:"Barlow Condensed",sans-serif;
+  --body:"Barlow",sans-serif;
+  --mono:"JetBrains Mono",monospace;
+  --border:rgba(245,196,0,.1);
+}
+html{scroll-behavior:smooth}
+body{font-family:var(--body);background:var(--bg);color:var(--off);overflow-x:hidden;-webkit-font-smoothing:antialiased;cursor:none}
+::-webkit-scrollbar{width:3px}
+::-webkit-scrollbar-thumb{background:var(--yellow);border-radius:2px}
+a{color:inherit;text-decoration:none}
+
+/* ── ANIMATIONS ── */
+@keyframes fadeUp{from{opacity:0;transform:translateY(22px)}to{opacity:1;transform:translateY(0)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes shimmer{0%{left:-100%}100%{left:200%}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+@keyframes marquee{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+@keyframes glow{0%,100%{text-shadow:none}50%{text-shadow:0 0 40px rgba(245,196,0,.6),0 0 80px rgba(245,196,0,.2)}}
+@keyframes notifSlide{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
+@keyframes progressFill{from{width:0}to{width:var(--pw)}}
+@keyframes blink{0%,49%,100%{opacity:1}50%,99%{opacity:0}}
+@keyframes ripple{0%{transform:scale(1);opacity:.6}100%{transform:scale(3);opacity:0}}
+@keyframes cascadeFlow{0%{stroke-dashoffset:100}100%{stroke-dashoffset:0}}
+@keyframes scanline{0%{top:-5%}100%{top:105%}}
+@keyframes trailFade{0%{opacity:.5}100%{opacity:0;transform:scale(0)}}
+
+/* ── CURSOR ── */
+#cur{position:fixed;width:10px;height:10px;background:var(--yellow);border-radius:50%;pointer-events:none;z-index:9999;transform:translate(-50%,-50%);transition:width .15s,height .15s}
+#curR{position:fixed;width:32px;height:32px;border:1.5px solid rgba(245,196,0,.6);border-radius:50%;pointer-events:none;z-index:9998;transform:translate(-50%,-50%)}
+#cur.big{width:46px;height:46px;background:rgba(245,196,0,.15)}
+#curR.big{width:62px;height:62px;border-color:var(--yellow)}
+.trail{position:fixed;width:5px;height:5px;border-radius:50%;background:rgba(245,196,0,.3);pointer-events:none;z-index:9997;transform:translate(-50%,-50%);animation:trailFade .5s ease forwards}
+
+/* ── SCAN + PROG ── */
+#prog{position:fixed;top:0;left:0;height:2.5px;background:linear-gradient(90deg,var(--yellow),var(--orange));z-index:9997;width:0%;transition:width .1s}
+.scanline{position:fixed;top:0;left:0;right:0;height:2px;background:linear-gradient(transparent,rgba(245,196,0,.03),transparent);pointer-events:none;z-index:500;animation:scanline 14s linear infinite}
+
+/* ── NAV ── */
+nav{position:fixed;top:0;left:0;right:0;z-index:100;display:flex;align-items:center;justify-content:space-between;padding:1rem 2.5rem;background:rgba(14,14,14,.95);backdrop-filter:blur(20px);border-bottom:1px solid var(--border)}
+.nav-logo{display:flex;align-items:center;gap:.6rem;cursor:pointer}
+.nav-logo-mark{width:30px;height:30px;background:var(--yellow);display:flex;align-items:center;justify-content:center;font-family:var(--display);font-size:.88rem;font-weight:900;color:var(--bg);letter-spacing:-.02em;clip-path:polygon(10% 0%,90% 0%,100% 10%,100% 90%,90% 100%,10% 100%,0% 90%,0% 10%)}
+.nav-logo-text{font-family:var(--display);font-size:1.3rem;font-weight:800;letter-spacing:.04em;color:var(--off)}
+.nav-logo-text span{color:var(--yellow)}
+.nav-tabs{display:flex;gap:.2rem;padding:.2rem;background:var(--bg3);border:1px solid var(--border);border-radius:6px}
+.ntab{padding:.38rem 1rem;border-radius:4px;font-family:var(--display);font-size:.82rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;transition:all .2s;color:var(--dim);background:transparent;border:none}
+.ntab.on{background:var(--yellow);color:var(--bg)}
+.ntab:hover:not(.on){color:var(--yellow)}
+.nav-right{display:flex;align-items:center;gap:.85rem}
+.nav-live{display:flex;align-items:center;gap:.4rem;font-family:var(--mono);font-size:.6rem;color:var(--yellow);letter-spacing:.1em}
+.nlive-dot{width:5px;height:5px;border-radius:50%;background:var(--yellow);animation:pulse 1.5s infinite}
+.nav-cta{padding:.45rem 1.2rem;background:var(--yellow);color:var(--bg);border:none;font-family:var(--display);font-size:.82rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;border-radius:4px;transition:all .25s;clip-path:polygon(4px 0%,100% 0%,100% calc(100% - 4px),calc(100% - 4px) 100%,0% 100%,0% 4px)}
+.nav-cta:hover{background:var(--yellow2);transform:translateY(-1px)}
+
+/* ── VIEWS ── */
+.view{display:none;min-height:100vh}
+.view.on{display:block;animation:fadeIn .3s ease}
+
+/* ══════════════════════════════════
+   LANDING
+══════════════════════════════════ */
+.hero{min-height:100vh;display:flex;flex-direction:column;justify-content:center;padding:7rem 2.5rem 5rem;position:relative;overflow:hidden}
+.hero-bg{position:absolute;inset:0;background:repeating-linear-gradient(45deg,transparent,transparent 30px,rgba(245,196,0,.012) 30px,rgba(245,196,0,.012) 31px),repeating-linear-gradient(-45deg,transparent,transparent 30px,rgba(245,196,0,.012) 30px,rgba(245,196,0,.012) 31px)}
+.hero-orb{position:absolute;border-radius:50%;filter:blur(120px);pointer-events:none}
+.hero-o1{width:500px;height:500px;background:rgba(245,196,0,.07);top:-100px;right:-100px}
+.hero-o2{width:350px;height:350px;background:rgba(255,107,0,.05);bottom:0;left:-80px}
+.hero-inner{position:relative;z-index:2;max-width:900px}
+.hero-eyebrow{display:flex;align-items:center;gap:.75rem;font-family:var(--mono);font-size:.65rem;letter-spacing:.18em;text-transform:uppercase;color:var(--yellow);margin-bottom:1.5rem;animation:fadeUp .5s .1s both}
+.hero-eye-line{display:block;width:2rem;height:1.5px;background:var(--yellow);position:relative;overflow:hidden}
+.hero-eye-line::after{content:"";position:absolute;inset:0;background:#fff;animation:shimmer 2s ease-in-out infinite}
+.hero h1{font-family:var(--display);font-size:clamp(4rem,9vw,9rem);font-weight:900;line-height:.88;letter-spacing:.01em;text-transform:uppercase;margin-bottom:1.5rem;animation:fadeUp .6s .2s both}
+.hero h1 .y{color:var(--yellow);animation:glow 3s ease-in-out infinite}
+.hero h1 .ghost{color:rgba(240,237,230,.08);-webkit-text-stroke:1px rgba(245,196,0,.15)}
+.hero-sub{font-size:1.1rem;color:var(--muted);font-weight:300;max-width:560px;line-height:1.75;margin-bottom:2.5rem;animation:fadeUp .6s .35s both}
+.hero-btns{display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:3.5rem;animation:fadeUp .6s .5s both}
+.btn-prim{padding:1rem 2.5rem;background:var(--yellow);color:var(--bg);border:none;font-family:var(--display);font-size:1rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;transition:all .3s;clip-path:polygon(6px 0%,100% 0%,100% calc(100% - 6px),calc(100% - 6px) 100%,0% 100%,0% 6px)}
+.btn-prim:hover{background:var(--yellow2);transform:translateY(-3px);box-shadow:0 12px 35px rgba(245,196,0,.3)}
+.btn-sec{padding:1rem 2.5rem;border:1.5px solid rgba(240,237,230,.2);color:var(--off);background:transparent;font-family:var(--display);font-size:1rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;transition:all .3s}
+.btn-sec:hover{border-color:var(--yellow);color:var(--yellow);transform:translateY(-3px)}
+.hero-stats{display:flex;gap:0;border:1px solid var(--border);width:fit-content;animation:fadeUp .6s .65s both}
+.hstat{padding:1.25rem 2.5rem;border-right:1px solid var(--border);position:relative;overflow:hidden}
+.hstat:last-child{border-right:none}
+.hstat::before{content:"";position:absolute;top:0;left:-100%;width:100%;height:100%;background:linear-gradient(90deg,transparent,rgba(245,196,0,.04),transparent);animation:shimmer 4s ease-in-out infinite}
+.hstat-n{font-family:var(--display);font-size:2.5rem;font-weight:900;color:var(--yellow);letter-spacing:.02em;line-height:1;display:block}
+.hstat-l{font-family:var(--mono);font-size:.58rem;color:var(--dim);letter-spacing:.12em;text-transform:uppercase;margin-top:.25rem;display:block}
+
+/* MARQUEE */
+.mwrap{border-top:1px solid var(--border);border-bottom:1px solid var(--border);background:var(--yellow);overflow:hidden;padding:.55rem 0}
+.mwrap::before,.mwrap::after{content:"";position:absolute;top:0;bottom:0;width:80px;z-index:2}
+.mtrack{display:flex;white-space:nowrap;animation:marquee 22s linear infinite}
+.mi{font-family:var(--display);font-size:.9rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;color:var(--bg);padding:0 2.5rem}
+.ms{opacity:.4;margin:0 .3rem}
+
+/* PROBLEM SECTION */
+.prob-sec{padding:7rem 2.5rem;background:var(--bg2);position:relative;overflow:hidden}
+.sec-ey{font-family:var(--mono);font-size:.6rem;letter-spacing:.2em;text-transform:uppercase;color:var(--yellow);margin-bottom:.6rem;display:flex;align-items:center;gap:.6rem}
+.sec-ey-l{display:block;width:1.5rem;height:1.5px;background:var(--yellow)}
+.sec-h{font-family:var(--display);font-size:clamp(2.5rem,5vw,4.5rem);font-weight:900;line-height:.92;text-transform:uppercase;letter-spacing:.02em;margin-bottom:1.25rem}
+.sec-h .y{color:var(--yellow)}
+.sec-p{font-size:.95rem;color:var(--muted);max-width:520px;line-height:1.8;font-weight:300;margin-bottom:3rem}
+.prob-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border);border:1px solid var(--border)}
+.pcard{background:var(--bg2);padding:2.5rem;transition:background .3s;cursor:default;position:relative;overflow:hidden}
+.pcard:hover{background:var(--bg3)}
+.pcard::before{content:"";position:absolute;top:0;left:0;width:3px;height:0;background:var(--yellow);transition:height .4s}
+.pcard:hover::before{height:100%}
+.pcard-num{font-family:var(--display);font-size:4rem;font-weight:900;color:rgba(245,196,0,.08);line-height:1;margin-bottom:.5rem}
+.pcard-icon{font-size:1.5rem;margin-bottom:1rem;display:block}
+.pcard-title{font-family:var(--display);font-size:1.4rem;font-weight:800;text-transform:uppercase;letter-spacing:.04em;margin-bottom:.6rem;color:var(--red)}
+.pcard-desc{font-size:.82rem;color:var(--muted);line-height:1.7;font-weight:300}
+.pcard-cost{margin-top:1rem;font-family:var(--mono);font-size:.65rem;color:var(--red);letter-spacing:.1em;padding:.4rem .75rem;background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.15);display:inline-block}
+
+/* HOW IT WORKS */
+.how-sec{padding:7rem 2.5rem;position:relative;overflow:hidden}
+.steps-wrap{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;background:var(--border);border:1px solid var(--border);margin-top:3rem}
+.step{background:var(--bg);padding:2.5rem;position:relative;overflow:hidden;transition:background .3s;cursor:default}
+.step:hover{background:var(--bg3)}
+.step::after{content:"→";position:absolute;top:50%;right:-1rem;transform:translateY(-50%);font-size:1.5rem;color:var(--yellow);font-weight:900;z-index:2}
+.step:last-child::after{display:none}
+.step-n{font-family:var(--display);font-size:5rem;font-weight:900;color:rgba(245,196,0,.07);line-height:1;position:absolute;top:.5rem;right:1rem}
+.step-icon{font-size:2rem;margin-bottom:1.25rem;display:block}
+.step-title{font-family:var(--display);font-size:1.3rem;font-weight:800;text-transform:uppercase;letter-spacing:.04em;margin-bottom:.6rem;color:var(--yellow)}
+.step-desc{font-size:.82rem;color:var(--muted);line-height:1.7;font-weight:300}
+
+/* PRICING */
+.price-sec{padding:7rem 2.5rem;background:var(--bg2);position:relative}
+.price-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border);border:1px solid var(--border);max-width:1000px;margin:3rem auto 0}
+.pcard2{background:var(--bg2);padding:2.5rem;position:relative;overflow:hidden;transition:all .3s;cursor:default}
+.pcard2.feat{background:var(--bg3)}
+.pcard2.feat::before{content:"";position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--yellow),var(--orange))}
+.pcard2:hover{background:var(--bg4)}
+.p-badge{position:absolute;top:1.5rem;right:1.5rem;background:var(--yellow);color:var(--bg);font-family:var(--display);font-size:.72rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase;padding:.18rem .55rem}
+.p-plan{font-family:var(--mono);font-size:.62rem;letter-spacing:.18em;text-transform:uppercase;color:var(--yellow);margin-bottom:.75rem}
+.p-amt{font-family:var(--display);font-size:4rem;font-weight:900;letter-spacing:-.02em;line-height:1;margin-bottom:.25rem}
+.p-period{font-family:var(--mono);font-size:.65rem;color:var(--dim);margin-bottom:2rem;letter-spacing:.08em}
+.p-features{display:flex;flex-direction:column;gap:.55rem;margin-bottom:2rem}
+.pf{display:flex;align-items:flex-start;gap:.6rem;font-size:.82rem;color:var(--muted);font-weight:300}
+.pf-y{color:var(--yellow);flex-shrink:0;font-size:.9rem;margin-top:1px}
+.p-btn{width:100%;padding:.8rem;background:rgba(245,196,0,.1);border:1px solid rgba(245,196,0,.25);color:var(--yellow);font-family:var(--display);font-size:.88rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;transition:all .3s}
+.pcard2.feat .p-btn{background:var(--yellow);color:var(--bg);border:none}
+.p-btn:hover{background:var(--yellow);color:var(--bg)}
+
+/* ══════════════════════════════════
+   GC DASHBOARD
+══════════════════════════════════ */
+#view-dashboard{padding:5.5rem 2.5rem 3rem}
+
+.dash-hd{display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:2rem;flex-wrap:wrap;gap:1rem}
+.dash-co{font-family:var(--mono);font-size:.6rem;color:var(--yellow);letter-spacing:.14em;text-transform:uppercase;margin-bottom:.35rem}
+.dash-t{font-family:var(--display);font-size:2.8rem;font-weight:900;text-transform:uppercase;letter-spacing:.03em;line-height:1}
+.dash-t span{color:var(--yellow)}
+.dash-meta{text-align:right}
+.dash-clock{font-family:var(--mono);font-size:1.3rem;color:var(--yellow);letter-spacing:.08em;animation:blink 2s step-end infinite}
+
+/* KPI */
+.kpi-row{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--border);border:1px solid var(--border);margin-bottom:1.5rem}
+.kpi{background:var(--bg2);padding:1.2rem 1.5rem;position:relative;overflow:hidden;transition:background .3s;cursor:default}
+.kpi:hover{background:var(--bg3)}
+.kpi::before{content:"";position:absolute;top:0;left:0;right:0;height:2px;background:var(--yellow);transform:scaleX(0);transform-origin:left;transition:transform .4s}
+.kpi:hover::before{transform:scaleX(1)}
+.kpi-l{font-family:var(--mono);font-size:.56rem;color:var(--dim);letter-spacing:.12em;text-transform:uppercase;margin-bottom:.45rem}
+.kpi-v{font-family:var(--display);font-size:2.4rem;font-weight:900;letter-spacing:.01em;line-height:1}
+.kv-y{color:var(--yellow)}.kv-g{color:var(--green)}.kv-r{color:var(--red)}.kv-b{color:var(--blue)}
+.kpi-s{font-family:var(--mono);font-size:.6rem;color:var(--dim);margin-top:.2rem}
+.kpi-s.up{color:var(--green)}.kpi-s.dn{color:var(--red)}
+.kpi-ico{position:absolute;top:1rem;right:1rem;font-size:1.3rem;opacity:.15}
+
+/* PANEL */
+.panel{background:var(--bg2);border:1px solid var(--border);overflow:hidden}
+.ph{display:flex;align-items:center;justify-content:space-between;padding:1rem 1.5rem;border-bottom:1px solid var(--border)}
+.pt{font-family:var(--display);font-size:.88rem;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--yellow);display:flex;align-items:center;gap:.45rem}
+.ptd{width:5px;height:5px;background:var(--yellow);animation:pulse 2s infinite}
+.pbadge{font-family:var(--mono);font-size:.56rem;padding:.2rem .5rem;letter-spacing:.08em}
+.pb-y{background:rgba(245,196,0,.1);color:var(--yellow);border:1px solid rgba(245,196,0,.2)}
+.pb-g{background:rgba(34,197,94,.1);color:var(--green);border:1px solid rgba(34,197,94,.2)}
+.pb-r{background:rgba(239,68,68,.1);color:var(--red);border:1px solid rgba(239,68,68,.2)}
+.pb-b{background:rgba(56,189,248,.1);color:var(--blue);border:1px solid rgba(56,189,248,.2)}
+
+/* JOB CARDS */
+.jobs-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:var(--border);border:1px solid var(--border);margin-bottom:1.5rem}
+.job-card{background:var(--bg2);padding:1.5rem;cursor:pointer;transition:all .3s;position:relative;overflow:hidden}
+.job-card:hover,.job-card.sel{background:var(--bg3)}
+.job-card.sel::before{content:"";position:absolute;top:0;left:0;right:0;height:3px;background:var(--yellow)}
+.jc-status{font-family:var(--mono);font-size:.56rem;letter-spacing:.1em;text-transform:uppercase;margin-bottom:.65rem;display:flex;align-items:center;gap:.4rem}
+.jcs-dot{width:6px;height:6px;border-radius:50%}
+.jcs-active .jcs-dot{background:var(--green);animation:pulse 1.5s infinite}
+.jcs-delayed .jcs-dot{background:var(--red)}
+.jcs-scheduled .jcs-dot{background:var(--blue)}
+.jc-name{font-family:var(--display);font-size:1.3rem;font-weight:800;text-transform:uppercase;letter-spacing:.04em;margin-bottom:.3rem}
+.jc-addr{font-family:var(--mono);font-size:.62rem;color:var(--dim);margin-bottom:.85rem}
+.jc-prog-wrap{margin-bottom:.65rem}
+.jc-prog-top{display:flex;justify-content:space-between;font-family:var(--mono);font-size:.58rem;color:var(--dim);margin-bottom:.3rem}
+.jc-prog-track{height:4px;background:var(--bg5);overflow:hidden}
+.jc-prog-fill{height:100%;background:linear-gradient(90deg,var(--yellow),var(--yellow2));position:relative;overflow:hidden;transition:width 1.2s ease}
+.jc-prog-fill::after{content:"";position:absolute;top:0;left:-100%;width:100%;height:100%;background:linear-gradient(90deg,transparent,rgba(255,255,255,.3),transparent);animation:shimmer 2.5s ease-in-out infinite}
+.jc-meta{display:flex;gap:.75rem}
+.jc-tag{font-family:var(--mono);font-size:.56rem;padding:.18rem .5rem;letter-spacing:.06em}
+
+/* TIMELINE VIEW */
+.timeline-wrap{padding:1.5rem;overflow-x:auto}
+.timeline-wrap::-webkit-scrollbar{height:3px}
+.timeline-wrap::-webkit-scrollbar-thumb{background:rgba(245,196,0,.3)}
+.tl-header{display:flex;margin-bottom:.5rem;padding-left:120px;gap:0}
+.tl-day{font-family:var(--mono);font-size:.58rem;color:var(--dim);letter-spacing:.08em;flex:1;text-align:center;min-width:40px}
+.tl-day.today{color:var(--yellow);font-weight:600}
+.tl-row{display:flex;align-items:center;margin-bottom:.5rem;position:relative}
+.tl-label{width:120px;flex-shrink:0;font-family:var(--mono);font-size:.65rem;color:var(--muted);letter-spacing:.06em;padding-right:1rem;text-align:right;line-height:1.3}
+.tl-track{flex:1;height:28px;background:var(--bg3);position:relative;min-width:600px}
+.tl-block{position:absolute;top:3px;height:22px;display:flex;align-items:center;padding:0 .65rem;font-family:var(--mono);font-size:.58rem;font-weight:600;letter-spacing:.06em;cursor:default;transition:filter .25s;border-radius:2px;white-space:nowrap;overflow:hidden}
+.tl-block:hover{filter:brightness(1.2)}
+.tb-done{background:rgba(34,197,94,.25);color:var(--green);border:1px solid rgba(34,197,94,.3)}
+.tb-active{background:rgba(245,196,0,.25);color:var(--yellow);border:1px solid rgba(245,196,0,.4)}
+.tb-next{background:rgba(56,189,248,.15);color:var(--blue);border:1px solid rgba(56,189,248,.25)}
+.tb-wait{background:rgba(240,237,230,.06);color:var(--dim);border:1px solid rgba(240,237,230,.08)}
+.tb-delayed{background:rgba(239,68,68,.2);color:var(--red);border:1px solid rgba(239,68,68,.3);animation:pulse 1.5s infinite}
+.tl-today-line{position:absolute;top:0;bottom:0;width:1.5px;background:var(--yellow);z-index:10;opacity:.7}
+.tl-today-line::before{content:"NOW";position:absolute;top:-18px;left:50%;transform:translateX(-50%);font-family:var(--mono);font-size:.5rem;color:var(--yellow);letter-spacing:.08em}
+
+/* SUBS TABLE */
+.subs-table{width:100%;border-collapse:collapse}
+.subs-table th{font-family:var(--mono);font-size:.58rem;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);padding:.65rem 1rem;text-align:left;border-bottom:1px solid var(--border);background:var(--bg3)}
+.subs-table td{padding:.75rem 1rem;border-bottom:1px solid rgba(245,196,0,.05);font-size:.82rem;vertical-align:middle}
+.subs-table tr:hover td{background:rgba(245,196,0,.03)}
+.subs-table tr:last-child td{border-bottom:none}
+.sub-name{font-weight:600;color:var(--off)}
+.sub-trade{font-family:var(--mono);font-size:.62rem;color:var(--dim);letter-spacing:.06em;margin-top:.1rem}
+.sub-phone{font-family:var(--mono);font-size:.68rem;color:var(--dim)}
+.status-chip{font-family:var(--mono);font-size:.58rem;padding:.2rem .6rem;letter-spacing:.08em;border-radius:2px;white-space:nowrap}
+.sc-done{background:rgba(34,197,94,.1);color:var(--green);border:1px solid rgba(34,197,94,.2)}
+.sc-active{background:rgba(245,196,0,.1);color:var(--yellow);border:1px solid rgba(245,196,0,.2)}
+.sc-next{background:rgba(56,189,248,.1);color:var(--blue);border:1px solid rgba(56,189,248,.2)}
+.sc-wait{background:rgba(240,237,230,.05);color:var(--dim);border:1px solid var(--border)}
+.sc-delay{background:rgba(239,68,68,.1);color:var(--red);border:1px solid rgba(239,68,68,.2)}
+.notify-btn{padding:.3rem .75rem;background:rgba(245,196,0,.1);border:1px solid rgba(245,196,0,.25);color:var(--yellow);font-family:var(--display);font-size:.72rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;transition:all .25s}
+.notify-btn:hover{background:var(--yellow);color:var(--bg)}
+.notified-btn{padding:.3rem .75rem;background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.2);color:var(--green);font-family:var(--mono);font-size:.62rem;cursor:default}
+
+/* DELAY CASCADE PANEL */
+.cascade-wrap{padding:1.5rem}
+.cascade-title{font-family:var(--display);font-size:1.1rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em;margin-bottom:1rem;color:var(--off)}
+.cascade-alert{background:rgba(239,68,68,.07);border:1px solid rgba(239,68,68,.2);padding:1rem 1.25rem;margin-bottom:1rem;display:flex;align-items:center;gap:1rem}
+.ca-icon{font-size:1.5rem;flex-shrink:0}
+.ca-text{font-size:.82rem;color:var(--muted);line-height:1.5}
+.ca-text strong{color:var(--red)}
+.cascade-btn{width:100%;padding:.85rem;background:var(--yellow);color:var(--bg);border:none;font-family:var(--display);font-size:1rem;font-weight:900;letter-spacing:.1em;text-transform:uppercase;cursor:pointer;transition:all .3s;position:relative;overflow:hidden}
+.cascade-btn:hover{background:var(--yellow2);transform:translateY(-2px);box-shadow:0 10px 30px rgba(245,196,0,.25)}
+.cascade-btn::before{content:"";position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,.15),transparent);animation:shimmer 3s ease-in-out infinite}
+.cascade-result{display:none;flex-direction:column;gap:.5rem;margin-top:1rem}
+.cr-item{display:flex;align-items:center;gap:.75rem;padding:.6rem .85rem;background:rgba(34,197,94,.05);border:1px solid rgba(34,197,94,.15);animation:notifSlide .4s ease both}
+.cr-check{color:var(--green);font-size:.9rem;flex-shrink:0}
+.cr-text{font-family:var(--mono);font-size:.68rem;color:var(--muted);line-height:1.4}
+
+/* ACTIVITY FEED */
+.feed{display:flex;flex-direction:column;max-height:280px;overflow-y:auto}
+.feed::-webkit-scrollbar{width:2px}
+.feed::-webkit-scrollbar-thumb{background:rgba(245,196,0,.2)}
+.feed-item{display:flex;align-items:flex-start;gap:.75rem;padding:.85rem 1.5rem;border-bottom:1px solid rgba(245,196,0,.04);transition:background .2s}
+.feed-item:hover{background:rgba(245,196,0,.03)}
+.feed-icon{width:24px;height:24px;display:flex;align-items:center;justify-content:center;font-size:.75rem;flex-shrink:0;margin-top:1px}
+.fi-y{background:rgba(245,196,0,.1);color:var(--yellow)}
+.fi-g{background:rgba(34,197,94,.1);color:var(--green)}
+.fi-r{background:rgba(239,68,68,.1);color:var(--red)}
+.fi-b{background:rgba(56,189,248,.1);color:var(--blue)}
+.feed-txt{font-size:.78rem;color:var(--muted);line-height:1.5;flex:1}
+.feed-txt strong{color:var(--off);font-weight:500}
+.feed-time{font-family:var(--mono);font-size:.58rem;color:var(--dimmer);flex-shrink:0;margin-top:2px}
+
+/* NOTIF TOAST */
+.notif-box{position:fixed;top:5rem;right:1.5rem;z-index:400;display:flex;flex-direction:column;gap:.5rem;max-width:290px;pointer-events:none}
+.toast{background:var(--bg3);border:1px solid rgba(245,196,0,.2);padding:.9rem 1.1rem;animation:notifSlide .4s ease;box-shadow:0 8px 30px rgba(0,0,0,.5);pointer-events:all;position:relative;overflow:hidden}
+.toast::before{content:"";position:absolute;top:0;left:0;right:0;height:2px;background:var(--yellow)}
+.toast.green::before{background:var(--green)}
+.toast.red::before{background:var(--red)}
+.toast-hd{display:flex;align-items:center;gap:.5rem;margin-bottom:.3rem}
+.toast-ico{font-size:.85rem}
+.toast-tl{font-family:var(--display);font-size:.78rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+.toast-tl.y{color:var(--yellow)}.toast-tl.g{color:var(--green)}.toast-tl.r{color:var(--red)}
+.toast-msg{font-size:.75rem;color:var(--muted);line-height:1.4}
+
+/* ══════════════════════════════════
+   SUB PHONE VIEW
+══════════════════════════════════ */
+#view-sub{padding:5.5rem 2.5rem 3rem;display:flex;justify-content:center;align-items:flex-start;gap:3rem;flex-wrap:wrap}
+.phone-scene{display:flex;flex-direction:column;align-items:center;gap:1.5rem}
+.phone-label{font-family:var(--mono);font-size:.62rem;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);text-align:center}
+.phone-wrap{position:relative}
+.phone-glow{position:absolute;inset:-20px;border-radius:50%;background:radial-gradient(ellipse,rgba(245,196,0,.15) 0%,transparent 70%);pointer-events:none}
+.phone{width:260px;background:#0A0A0A;border-radius:36px;border:3px solid #2A2A2A;box-shadow:0 0 0 1px #111,0 30px 80px rgba(0,0,0,.8),inset 0 0 0 1px #1F1F1F;overflow:hidden;position:relative}
+.phone::before{content:"";position:absolute;top:12px;left:50%;transform:translateX(-50%);width:70px;height:5px;background:#1A1A1A;border-radius:3px;z-index:20}
+.phone-screen{padding:2.5rem 1.25rem 1.5rem;min-height:560px;background:linear-gradient(180deg,#0A0A0A 0%,#0F0F0F 100%)}
+
+/* SMS BUBBLES */
+.sms-time{font-family:var(--mono);font-size:.58rem;color:rgba(255,255,255,.3);text-align:center;margin:.75rem 0;letter-spacing:.08em}
+.sms-bubble{max-width:80%;margin:.4rem 0;padding:.7rem .95rem;border-radius:12px;font-size:.82rem;line-height:1.5;position:relative}
+.sms-from{background:#1C1C1E;color:rgba(255,255,255,.85);border-radius:12px 12px 12px 2px;margin-right:auto}
+.sms-from strong{color:var(--yellow)}
+.sms-reply{background:var(--yellow);color:var(--bg);border-radius:12px 12px 2px 12px;margin-left:auto;font-weight:600}
+.sms-header{display:flex;align-items:center;gap:.65rem;padding:.85rem 1.25rem;border-bottom:1px solid #1A1A1A}
+.sms-av{width:34px;height:34px;border-radius:50%;background:var(--yellow);display:flex;align-items:center;justify-content:center;font-family:var(--display);font-size:.88rem;font-weight:900;color:var(--bg)}
+.sms-contact{font-size:.82rem;font-weight:600;color:#fff}
+.sms-sub-contact{font-size:.65rem;color:rgba(255,255,255,.4);font-family:var(--mono)}
+
+/* SUB PORTAL CARD */
+.sub-portal{max-width:400px}
+.sp-header{font-family:var(--mono);font-size:.6rem;letter-spacing:.18em;text-transform:uppercase;color:var(--yellow);margin-bottom:.6rem}
+.sp-title{font-family:var(--display);font-size:2.2rem;font-weight:900;text-transform:uppercase;letter-spacing:.03em;margin-bottom:.5rem}
+.sp-sub{font-size:.88rem;color:var(--muted);line-height:1.7;margin-bottom:2rem}
+.sp-cards{display:flex;flex-direction:column;gap:1rem}
+.sp-card{background:var(--bg2);border:1px solid var(--border);padding:1.25rem;position:relative;overflow:hidden;transition:all .3s;cursor:default}
+.sp-card:hover{border-color:rgba(245,196,0,.3);transform:translateX(4px)}
+.sp-card::before{content:"";position:absolute;top:0;left:0;bottom:0;width:2px;background:var(--yellow);transform:scaleY(0);transform-origin:top;transition:transform .3s}
+.sp-card:hover::before{transform:scaleY(1)}
+.sp-card-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:.4rem}
+.sp-job{font-family:var(--display);font-size:1.1rem;font-weight:800;text-transform:uppercase;letter-spacing:.04em}
+.sp-start{font-family:var(--mono);font-size:.7rem;font-weight:600}
+.sp-start.y{color:var(--yellow)}.sp-start.g{color:var(--green)}.sp-start.b{color:var(--blue)}
+.sp-addr{font-family:var(--mono);font-size:.62rem;color:var(--dim);margin-bottom:.6rem}
+.sp-detail{font-size:.78rem;color:var(--muted)}
+.sp-confirm{width:100%;padding:.75rem;background:var(--yellow);color:var(--bg);border:none;font-family:var(--display);font-size:.88rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;cursor:pointer;margin-top:.85rem;transition:all .3s}
+.sp-confirm:hover{background:var(--yellow2);transform:translateY(-2px)}
+.sp-confirmed{width:100%;padding:.75rem;background:rgba(34,197,94,.1);border:1px solid rgba(34,197,94,.2);color:var(--green);font-family:var(--mono);font-size:.72rem;letter-spacing:.1em;text-align:center;margin-top:.85rem;cursor:default}
+
+/* RESPONSIVE */
+@media(max-width:1000px){
+  .kpi-row{grid-template-columns:repeat(3,1fr)}
+  .jobs-grid{grid-template-columns:1fr 1fr}
+  .prob-grid,.steps-wrap,.price-grid{grid-template-columns:1fr}
+  .step::after{display:none}
+}
+@media(max-width:700px){
+  nav{padding:.85rem 1.25rem}
+  .ntab span{display:none}
+  .hero{padding:6rem 1.5rem 4rem}
+  .hero h1{font-size:3.5rem}
+  .hero-stats{flex-direction:column}
+  .hstat{border-right:none;border-bottom:1px solid var(--border)}
+  .prob-sec,.how-sec,.price-sec{padding:4rem 1.5rem}
+  #view-dashboard{padding:5rem 1.25rem 3rem}
+  .kpi-row{grid-template-columns:1fr 1fr}
+  .jobs-grid{grid-template-columns:1fr}
+  #view-sub{flex-direction:column;align-items:center;padding:5rem 1.25rem 3rem}
+}
+</style>
+</head>
+<body>
+<div id="cur"></div><div id="curR"></div>
+<div id="prog"></div>
+<div class="scanline"></div>
+<div class="notif-box" id="notifBox"></div>
+
+<!-- NAV -->
+<nav>
+  <div class="nav-logo" onclick="showV('landing')">
+    <div class="nav-logo-mark">SS</div>
+    <div class="nav-logo-text">Sub<span>Sync</span></div>
+  </div>
+  <div class="nav-tabs">
+    <button class="ntab on" onclick="showV('landing')">Home</button>
+    <button class="ntab" onclick="showV('dashboard')">&#128202; <span>Dashboard</span></button>
+    <button class="ntab" onclick="showV('sub')">&#128247; <span>Sub View</span></button>
+  </div>
+  <div class="nav-right">
+    <div class="nav-live"><div class="nlive-dot"></div>LIVE DEMO</div>
+    <button class="nav-cta" onclick="showV('dashboard')">See It Work</button>
+  </div>
+</nav>
+
+<!-- ══════════════
+     LANDING
+══════════════ -->
+<div class="view on" id="view-landing">
+  <div class="hero">
+    <div class="hero-bg"></div>
+    <div class="hero-orb hero-o1"></div><div class="hero-orb hero-o2"></div>
+    <div class="hero-inner">
+      <div class="hero-eyebrow"><span class="hero-eye-line"></span>For General Contractors</div>
+      <h1>Stop<br><span class="y">herding</span><br><span class="ghost">subs.</span></h1>
+      <p class="hero-sub">SubSync automatically notifies every subcontractor exactly when it's their turn — no phone calls, no texts, no wasted trips. One tap delay? Every sub's schedule shifts instantly.</p>
+      <div class="hero-btns">
+        <button class="btn-prim" onclick="showV('dashboard')">See the Dashboard</button>
+        <button class="btn-sec" onclick="showV('sub')">Sub's Phone View</button>
+      </div>
+      <div class="hero-stats">
+        <div class="hstat"><span class="hstat-n">$177B</span><span class="hstat-l">Lost annually to<br>coord. failures</span></div>
+        <div class="hstat"><span class="hstat-n">4 hrs</span><span class="hstat-l">GC spends per day<br>on phone calls</span></div>
+        <div class="hstat"><span class="hstat-n">23%</span><span class="hstat-l">Of job delays from<br>wrong show-up dates</span></div>
+        <div class="hstat"><span class="hstat-n">$99</span><span class="hstat-l">Per month to<br>fix all of it</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="mwrap" style="position:relative">
+    <div class="mtrack">
+      <span class="mi">Auto-Notify Subs <span class="ms">✦</span></span>
+      <span class="mi">One-Tap Delay Cascade <span class="ms">✦</span></span>
+      <span class="mi">Live Job Timelines <span class="ms">✦</span></span>
+      <span class="mi">No More Phone Tag <span class="ms">✦</span></span>
+      <span class="mi">Works By SMS <span class="ms">✦</span></span>
+      <span class="mi">15 Minute Setup <span class="ms">✦</span></span>
+      <span class="mi">Auto-Notify Subs <span class="ms">✦</span></span>
+      <span class="mi">One-Tap Delay Cascade <span class="ms">✦</span></span>
+      <span class="mi">Live Job Timelines <span class="ms">✦</span></span>
+      <span class="mi">No More Phone Tag <span class="ms">✦</span></span>
+      <span class="mi">Works By SMS <span class="ms">✦</span></span>
+      <span class="mi">15 Minute Setup <span class="ms">✦</span></span>
+    </div>
+  </div>
+
+  <div class="prob-sec">
+    <div class="sec-ey"><span class="sec-ey-l"></span>The Problem</div>
+    <div class="sec-h">Every job is a<br><span class="y">coordination nightmare.</span></div>
+    <p class="sec-p">You're running 5 jobs, managing 30 subs, and spending half your day on the phone. Meanwhile your jobs are bleeding money from delays, wasted trips, and wrong schedules.</p>
+    <div class="prob-grid">
+      <div class="pcard reveal">
+        <div class="pcard-num">01</div>
+        <span class="pcard-icon">📵</span>
+        <div class="pcard-title">Phone Tag Hell</div>
+        <p class="pcard-desc">You call the electrician. Voicemail. Call again. They say they'll come Tuesday. They show up Thursday. Framing crew has moved on. Now you're paying two crews at once.</p>
+        <div class="pcard-cost">AVG: 4 HOURS/DAY ON PHONE CALLS</div>
+      </div>
+      <div class="pcard reveal">
+        <span class="pcard-icon">🚚</span>
+        <div class="pcard-num">02</div>
+        <div class="pcard-title">Wasted Trips</div>
+        <p class="pcard-desc">Plumber shows up Monday. Previous trade isn't done. He drives an hour both ways for nothing. Bills you anyway. You eat the cost or lose the sub.</p>
+        <div class="pcard-cost">$300-800 PER WASTED TRIP</div>
+      </div>
+      <div class="pcard reveal">
+        <span class="pcard-icon">📅</span>
+        <div class="pcard-num">03</div>
+        <div class="pcard-title">Cascade Delays</div>
+        <p class="pcard-desc">One rain day pushes the whole job. Now you have to call every single sub individually to reschedule. 8 calls. 8 voicemails. 3 days to sort out.</p>
+        <div class="pcard-cost">AVG DELAY: 2.3 WEEKS PER JOB</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="how-sec">
+    <div class="sec-ey"><span class="sec-ey-l"></span>How It Works</div>
+    <div class="sec-h">Set it once.<br><span class="y">It runs itself.</span></div>
+    <p class="sec-p">SubSync isn't project management software. It's a coordination engine that texts your subs so you don't have to.</p>
+    <div class="steps-wrap">
+      <div class="step reveal">
+        <div class="step-n">01</div>
+        <span class="step-icon">🏗️</span>
+        <div class="step-title">Add Your Job</div>
+        <p class="step-desc">Enter the job address, add your trades in order, set approximate start dates. Takes 10 minutes total. Works on your phone.</p>
+      </div>
+      <div class="step reveal">
+        <div class="step-n">02</div>
+        <span class="step-icon">⚙️</span>
+        <div class="step-title">Set The Sequence</div>
+        <p class="step-desc">Tell SubSync the order — framing before electrical, rough-in before drywall. It handles the logic automatically from there.</p>
+      </div>
+      <div class="step reveal">
+        <div class="step-n">03</div>
+        <span class="step-icon">📲</span>
+        <div class="step-title">Subs Get Texted</div>
+        <p class="step-desc">When the previous trade confirms done, the next sub automatically gets a text with the address, start date, and what to expect. No app needed on their end.</p>
+      </div>
+      <div class="step reveal">
+        <div class="step-n">04</div>
+        <span class="step-icon">⚡</span>
+        <div class="step-title">Delays Auto-Cascade</div>
+        <p class="step-desc">Rain day? Inspection failed? One tap moves the whole job. Every affected sub gets a new text instantly. You make one decision, SubSync handles 8 calls.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="price-sec">
+    <div style="text-align:center;margin-bottom:0">
+      <div class="sec-ey" style="justify-content:center">Pricing</div>
+      <div class="sec-h" style="text-align:center">Less than one <span class="y">wasted trip.</span></div>
+      <p class="sec-p" style="margin:0 auto;text-align:center">One sub showing up to the wrong job costs more than a year of SubSync.</p>
+    </div>
+    <div class="price-grid">
+      <div class="pcard2 reveal">
+        <div class="p-plan">Starter</div>
+        <div class="p-amt">$99</div>
+        <div class="p-period">PER MONTH · UP TO 5 ACTIVE JOBS</div>
+        <div class="p-features">
+          <div class="pf"><span class="pf-y">✦</span>Up to 5 active jobs</div>
+          <div class="pf"><span class="pf-y">✦</span>Unlimited subs per job</div>
+          <div class="pf"><span class="pf-y">✦</span>Auto SMS notifications</div>
+          <div class="pf"><span class="pf-y">✦</span>One-tap delay cascade</div>
+          <div class="pf"><span class="pf-y">✦</span>Basic job timeline</div>
+        </div>
+        <button class="p-btn" onclick="showV('dashboard')">See Demo</button>
+      </div>
+      <div class="pcard2 feat reveal">
+        <div class="p-badge">POPULAR</div>
+        <div class="p-plan">Builder</div>
+        <div class="p-amt">$249</div>
+        <div class="p-period">PER MONTH · UP TO 20 ACTIVE JOBS</div>
+        <div class="p-features">
+          <div class="pf"><span class="pf-y">✦</span>Everything in Starter</div>
+          <div class="pf"><span class="pf-y">✦</span>Full Gantt timeline view</div>
+          <div class="pf"><span class="pf-y">✦</span>Sub confirmation tracking</div>
+          <div class="pf"><span class="pf-y">✦</span>Inspection scheduling</div>
+          <div class="pf"><span class="pf-y">✦</span>Cost overrun alerts</div>
+          <div class="pf"><span class="pf-y">✦</span>Client progress reports</div>
+        </div>
+        <button class="p-btn" onclick="showV('dashboard')">See Demo</button>
+      </div>
+      <div class="pcard2 reveal">
+        <div class="p-plan">Enterprise</div>
+        <div class="p-amt">$499</div>
+        <div class="p-period">PER MONTH · UNLIMITED JOBS</div>
+        <div class="p-features">
+          <div class="pf"><span class="pf-y">✦</span>Everything in Builder</div>
+          <div class="pf"><span class="pf-y">✦</span>Multiple project managers</div>
+          <div class="pf"><span class="pf-y">✦</span>Custom sub onboarding</div>
+          <div class="pf"><span class="pf-y">✦</span>QuickBooks integration</div>
+          <div class="pf"><span class="pf-y">✦</span>White-label client portal</div>
+          <div class="pf"><span class="pf-y">✦</span>Priority phone support</div>
+        </div>
+        <button class="p-btn" onclick="showV('dashboard')">See Demo</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════
+     GC DASHBOARD
+══════════════════════ -->
+<div class="view" id="view-dashboard">
+  <div class="dash-hd">
+    <div>
+      <div class="dash-co">&#128202; Rivera Construction LLC — Dallas, TX</div>
+      <div class="dash-t">Job <span>Control</span></div>
+    </div>
+    <div class="dash-meta">
+      <div style="font-family:var(--mono);font-size:.62rem;color:var(--dim);letter-spacing:.08em">WED APR 30 2026</div>
+      <div class="dash-clock" id="dashClock">--:--:--</div>
+    </div>
+  </div>
+
+  <!-- KPIs -->
+  <div class="kpi-row">
+    <div class="kpi"><div class="kpi-l">Active Jobs</div><div class="kpi-v kv-y" id="kJobs">0</div><div class="kpi-s">3 on schedule · 1 delayed</div><div class="kpi-ico">🏗️</div></div>
+    <div class="kpi"><div class="kpi-l">Active Subs</div><div class="kpi-v kv-b">24</div><div class="kpi-s">Across all jobs</div><div class="kpi-ico">👷</div></div>
+    <div class="kpi"><div class="kpi-l">Texts Sent Today</div><div class="kpi-v kv-g" id="kTexts">0</div><div class="kpi-s up">&#9650; All auto-sent</div><div class="kpi-ico">📲</div></div>
+    <div class="kpi"><div class="kpi-l">Hours Saved/Week</div><div class="kpi-v kv-y">18</div><div class="kpi-s up">&#9650; vs manual calls</div><div class="kpi-ico">⏱️</div></div>
+    <div class="kpi"><div class="kpi-l">Delays Prevented</div><div class="kpi-v kv-g">7</div><div class="kpi-s">This month</div><div class="kpi-ico">⚡</div></div>
+  </div>
+
+  <!-- JOB CARDS -->
+  <div class="jobs-grid">
+    <div class="job-card sel" onclick="selJob(this,'oakridge')">
+      <div class="jc-status jcs-active"><div class="jcs-dot"></div><span style="color:var(--green);font-family:var(--mono);font-size:.56rem;letter-spacing:.1em">ACTIVE</span></div>
+      <div class="jc-name">Oakridge Residence</div>
+      <div class="jc-addr">4821 Oakridge Blvd, Plano TX 75024</div>
+      <div class="jc-prog-wrap">
+        <div class="jc-prog-top"><span>Progress</span><span>62%</span></div>
+        <div class="jc-prog-track"><div class="jc-prog-fill" style="width:0%" data-w="62%"></div></div>
+      </div>
+      <div class="jc-meta">
+        <span class="jc-tag pb-g">On Schedule</span>
+        <span class="jc-tag pb-b">8 Trades</span>
+      </div>
+    </div>
+    <div class="job-card" onclick="selJob(this,'meridian')">
+      <div class="jc-status jcs-delayed"><div class="jcs-dot"></div><span style="color:var(--red);font-family:var(--mono);font-size:.56rem;letter-spacing:.1em">DELAYED</span></div>
+      <div class="jc-name">Meridian Office</div>
+      <div class="jc-addr">1200 Meridian Dr, Frisco TX 75034</div>
+      <div class="jc-prog-wrap">
+        <div class="jc-prog-top"><span>Progress</span><span>38%</span></div>
+        <div class="jc-prog-track"><div class="jc-prog-fill" style="width:0%" data-w="38%"></div></div>
+      </div>
+      <div class="jc-meta">
+        <span class="jc-tag pb-r">3 Days Behind</span>
+        <span class="jc-tag pb-b">6 Trades</span>
+      </div>
+    </div>
+    <div class="job-card" onclick="selJob(this,'summit')">
+      <div class="jc-status jcs-scheduled"><div class="jcs-dot"></div><span style="color:var(--blue);font-family:var(--mono);font-size:.56rem;letter-spacing:.1em">SCHEDULED</span></div>
+      <div class="jc-name">Summit Townhomes</div>
+      <div class="jc-addr">890 Summit Way, Allen TX 75013</div>
+      <div class="jc-prog-wrap">
+        <div class="jc-prog-top"><span>Progress</span><span>12%</span></div>
+        <div class="jc-prog-track"><div class="jc-prog-fill" style="width:0%" data-w="12%"></div></div>
+      </div>
+      <div class="jc-meta">
+        <span class="jc-tag pb-b">Starts May 5</span>
+        <span class="jc-tag pb-y">10 Trades</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- TIMELINE + SUBS GRID -->
+  <div style="display:grid;grid-template-columns:1.4fr 1fr;gap:1px;background:var(--border);margin-bottom:1.5rem">
+    <!-- TIMELINE -->
+    <div class="panel">
+      <div class="ph">
+        <div class="pt"><div class="ptd"></div>Job Timeline — Oakridge</div>
+        <div class="pbadge pb-g">ON TRACK</div>
+      </div>
+      <div class="timeline-wrap">
+        <div class="tl-header" id="tlHeader"></div>
+        <div id="tlBody"></div>
+      </div>
+    </div>
+
+    <!-- DELAY CASCADE -->
+    <div class="panel">
+      <div class="ph">
+        <div class="pt"><div class="ptd"></div>Delay Cascade Tool</div>
+        <div class="pbadge pb-r">MERIDIAN DELAYED</div>
+      </div>
+      <div class="cascade-wrap">
+        <div class="cascade-alert">
+          <span class="ca-icon">🌧️</span>
+          <div class="ca-text"><strong>Rain delay detected</strong> — Meridian Office concrete pour rescheduled. 6 subs need updated start dates. Without SubSync: 6 phone calls, 3 days to sort out.</div>
+        </div>
+        <button class="cascade-btn" onclick="runCascade()">⚡ Auto-Notify All 6 Subs Now</button>
+        <div class="cascade-result" id="cascadeResult">
+          <div class="cr-item" style="animation-delay:.0s"><span class="cr-check">✓</span><div class="cr-text"><strong>Electrician (Mike D.)</strong> — New start: May 8. Text sent.</div></div>
+          <div class="cr-item" style="animation-delay:.15s"><span class="cr-check">✓</span><div class="cr-text"><strong>Plumber (A&R Plumbing)</strong> — New start: May 9. Text sent.</div></div>
+          <div class="cr-item" style="animation-delay:.30s"><span class="cr-check">✓</span><div class="cr-text"><strong>HVAC (CoolAir LLC)</strong> — New start: May 12. Text sent.</div></div>
+          <div class="cr-item" style="animation-delay:.45s"><span class="cr-check">✓</span><div class="cr-text"><strong>Drywaller (Pro Walls)</strong> — New start: May 15. Text sent.</div></div>
+          <div class="cr-item" style="animation-delay:.60s"><span class="cr-check">✓</span><div class="cr-text"><strong>Painter (ColorRight)</strong> — New start: May 20. Text sent.</div></div>
+          <div class="cr-item" style="animation-delay:.75s"><span class="cr-check">✓</span><div class="cr-text"><strong>Inspector (City DFW)</strong> — Rescheduled May 22. ✅</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SUBS TABLE + FEED -->
+  <div style="display:grid;grid-template-columns:1.3fr 1fr;gap:1px;background:var(--border)">
+    <div class="panel">
+      <div class="ph">
+        <div class="pt"><div class="ptd"></div>Subcontractors — Oakridge</div>
+        <div class="pbadge pb-y">8 TRADES</div>
+      </div>
+      <div style="overflow-x:auto">
+        <table class="subs-table">
+          <thead><tr><th>Trade / Sub</th><th>Phone</th><th>Status</th><th>Next Start</th><th>Action</th></tr></thead>
+          <tbody>
+            <tr><td><div class="sub-name">Premier Framing</div><div class="sub-trade">FRAMING</div></td><td class="sub-phone">(972) 555-0142</td><td><span class="status-chip sc-done">✓ Complete</span></td><td style="font-family:var(--mono);font-size:.72rem;color:var(--dim)">Done Apr 22</td><td><span class="notified-btn">✓ Done</span></td></tr>
+            <tr><td><div class="sub-name">TXState Electric</div><div class="sub-trade">ELECTRICAL</div></td><td class="sub-phone">(214) 555-0387</td><td><span class="status-chip sc-active">▶ ON SITE</span></td><td style="font-family:var(--mono);font-size:.72rem;color:var(--yellow)">Today</td><td><span class="notified-btn">✓ Notified</span></td></tr>
+            <tr><td><div class="sub-name">A&R Plumbing</div><div class="sub-trade">PLUMBING</div></td><td class="sub-phone">(469) 555-0291</td><td><span class="status-chip sc-next">▷ Up Next</span></td><td style="font-family:var(--mono);font-size:.72rem;color:var(--blue)">May 3</td><td><button class="notify-btn" onclick="notifySub(this,'A&R Plumbing')">Notify Now</button></td></tr>
+            <tr><td><div class="sub-name">CoolAir HVAC</div><div class="sub-trade">HVAC</div></td><td class="sub-phone">(972) 555-0558</td><td><span class="status-chip sc-wait">⏳ Waiting</span></td><td style="font-family:var(--mono);font-size:.72rem;color:var(--dim)">~May 7</td><td><button class="notify-btn" onclick="notifySub(this,'CoolAir HVAC')">Notify Now</button></td></tr>
+            <tr><td><div class="sub-name">Pro Walls TX</div><div class="sub-trade">DRYWALL</div></td><td class="sub-phone">(214) 555-0774</td><td><span class="status-chip sc-wait">⏳ Waiting</span></td><td style="font-family:var(--mono);font-size:.72rem;color:var(--dim)">~May 12</td><td><button class="notify-btn" onclick="notifySub(this,'Pro Walls TX')">Notify Now</button></td></tr>
+            <tr><td><div class="sub-name">ColorRight Paint</div><div class="sub-trade">PAINTING</div></td><td class="sub-phone">(469) 555-0102</td><td><span class="status-chip sc-wait">⏳ Waiting</span></td><td style="font-family:var(--mono);font-size:.72rem;color:var(--dim)">~May 18</td><td><button class="notify-btn" onclick="notifySub(this,'ColorRight Paint')">Notify Now</button></td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- ACTIVITY FEED -->
+    <div class="panel">
+      <div class="ph">
+        <div class="pt"><div class="ptd"></div>Activity Feed</div>
+        <div class="pbadge pb-g">LIVE</div>
+      </div>
+      <div class="feed" id="feedEl">
+        <div class="feed-item"><div class="feed-icon fi-g">✓</div><div class="feed-txt"><strong>TXState Electric</strong> confirmed on-site at Oakridge. Rough-in 60% complete.</div><div class="feed-time">4m</div></div>
+        <div class="feed-item"><div class="feed-icon fi-y">📲</div><div class="feed-txt"><strong>Auto-text sent</strong> to A&R Plumbing — "Electrical rough-in nearly done. Your start May 3 confirmed."</div><div class="feed-time">12m</div></div>
+        <div class="feed-item"><div class="feed-icon fi-r">⚠️</div><div class="feed-txt"><strong>Meridian Office</strong> — Rain delay flagged. 6 subs need reschedule. Tap Cascade Tool.</div><div class="feed-time">28m</div></div>
+        <div class="feed-item"><div class="feed-icon fi-g">✓</div><div class="feed-txt"><strong>Premier Framing</strong> marked Oakridge framing complete. Next trade auto-notified.</div><div class="feed-time">1h</div></div>
+        <div class="feed-item"><div class="feed-icon fi-b">📅</div><div class="feed-txt"><strong>Summit Townhomes</strong> — All 10 subs loaded. Sequence set. Auto-notifications will begin May 5.</div><div class="feed-time">2h</div></div>
+        <div class="feed-item"><div class="feed-icon fi-y">📲</div><div class="feed-txt"><strong>17 texts sent today</strong> across 3 jobs. Zero phone calls made by GC.</div><div class="feed-time">3h</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════
+     SUB PHONE VIEW
+══════════════════════ -->
+<div class="view" id="view-sub">
+  <!-- PHONE: SMS View -->
+  <div class="phone-scene">
+    <div class="phone-label">What your sub sees<br>on their phone</div>
+    <div class="phone-wrap">
+      <div class="phone-glow"></div>
+      <div class="phone">
+        <div class="sms-header">
+          <div class="sms-av">SS</div>
+          <div>
+            <div class="sms-contact">SubSync</div>
+            <div class="sms-sub-contact">Rivera Construction</div>
+          </div>
+        </div>
+        <div class="phone-screen">
+          <div class="sms-time">TODAY 8:14 AM</div>
+          <div class="sms-bubble sms-from">
+            Hey Mike — <strong>Framing is done</strong> at 4821 Oakridge Blvd, Plano TX.<br><br>
+            You're up <strong>Wednesday May 1</strong>. Rough-in electrical, 2nd floor + garage.<br><br>
+            Reply <strong>Y</strong> to confirm or call Rivera at (214) 555-0100.
+          </div>
+          <div class="sms-time">TODAY 8:31 AM</div>
+          <div class="sms-bubble sms-reply">Y</div>
+          <div class="sms-time">TODAY 8:31 AM</div>
+          <div class="sms-bubble sms-from">
+            ✅ <strong>Confirmed!</strong> See you May 1 at Oakridge. We'll text you if anything changes.<br><br>
+            — Rivera Construction via SubSync
+          </div>
+          <div class="sms-time">TODAY 2:45 PM</div>
+          <div class="sms-bubble sms-from">
+            🔔 <strong>Update — Oakridge:</strong> Inspection passed ✅ You're clear to start <strong>tomorrow 7AM</strong>. Access code: 4821.
+          </div>
+          <div class="sms-time">TODAY 2:46 PM</div>
+          <div class="sms-bubble sms-reply">See you tmrw 👊</div>
+        </div>
+      </div>
+    </div>
+    <div style="max-width:260px;text-align:center">
+      <p style="font-size:.78rem;color:var(--muted);line-height:1.65;font-weight:300">Subs need zero app. Zero login. Just a text message they already know how to use.</p>
+    </div>
+  </div>
+
+  <!-- SUB PORTAL -->
+  <div class="sub-portal">
+    <div class="sp-header">Sub Portal — Web View</div>
+    <div class="sp-title">Your Jobs This Week</div>
+    <p class="sp-sub">TXState Electric — Mike D. See your upcoming jobs, confirm start dates, and flag issues directly.</p>
+    <div class="sp-cards">
+      <div class="sp-card">
+        <div class="sp-card-top">
+          <div class="sp-job">Oakridge Residence</div>
+          <div class="sp-start y">▶ ON SITE TODAY</div>
+        </div>
+        <div class="sp-addr">4821 Oakridge Blvd, Plano TX · Access: Side gate</div>
+        <div class="sp-detail">Electrical rough-in — 2nd floor + garage. Materials staged. GC contact: Carlos (214) 555-0100</div>
+        <div class="sp-confirmed">✓ CONFIRMED — You're on site</div>
+      </div>
+      <div class="sp-card">
+        <div class="sp-card-top">
+          <div class="sp-job">Summit Townhomes</div>
+          <div class="sp-start b">▷ STARTS MAY 8</div>
+        </div>
+        <div class="sp-addr">890 Summit Way, Allen TX · Unit 4-12</div>
+        <div class="sp-detail">Full electrical rough-in — 9 units. Framing complete May 6. You'll get a text when ready.</div>
+        <button class="sp-confirm" onclick="confirmJob(this)">Confirm May 8 Start ✓</button>
+      </div>
+      <div class="sp-card">
+        <div class="sp-card-top">
+          <div class="sp-job">Meridian Office</div>
+          <div class="sp-start" style="color:var(--red)">⚠ DELAYED</div>
+        </div>
+        <div class="sp-addr">1200 Meridian Dr, Frisco TX</div>
+        <div class="sp-detail">Rain delay — concrete pushed. New start date TBD. You'll get a text when rescheduled. No action needed.</div>
+        <div class="sp-confirmed" style="background:rgba(239,68,68,.05);border-color:rgba(239,68,68,.15);color:var(--red)">⚠ RESCHEDULING — Stand by for text</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── CURSOR + TRAIL
+var c=document.getElementById("cur"),r=document.getElementById("curR"),mx=0,my=0,rx=0,ry=0,tt=0;
+document.addEventListener("mousemove",function(e){
+  mx=e.clientX;my=e.clientY;
+  c.style.left=mx+"px";c.style.top=my+"px";
+  if(Date.now()-tt<40)return;tt=Date.now();
+  var d=document.createElement("div");d.className="trail";
+  d.style.left=mx+"px";d.style.top=my+"px";
+  document.body.appendChild(d);
+  setTimeout(function(){d.remove()},500);
+});
+(function lp(){rx+=(mx-rx)*.12;ry+=(my-ry)*.12;r.style.left=rx+"px";r.style.top=ry+"px";requestAnimationFrame(lp)})();
+document.querySelectorAll("button,.job-card,.pcard,.step,.pcard2,.kpi,.sp-card,.subs-table tr").forEach(function(el){
+  el.addEventListener("mouseenter",function(){c.classList.add("big");r.classList.add("big")});
+  el.addEventListener("mouseleave",function(){c.classList.remove("big");r.classList.remove("big")});
+});
+
+// ── SCROLL PROGRESS
+window.addEventListener("scroll",function(){
+  var p=document.getElementById("prog");
+  if(p)p.style.width=(window.scrollY/(document.body.scrollHeight-window.innerHeight)*100)+"%";
+});
+
+// ── REVEAL
+var obs=new IntersectionObserver(function(e){e.forEach(function(el){if(el.isIntersecting)el.target.classList.add("on")})},{threshold:.12});
+document.querySelectorAll(".reveal").forEach(function(el){obs.observe(el)});
+
+// ── VIEW SWITCH
+function showV(id){
+  document.querySelectorAll(".view").forEach(function(v){v.classList.remove("on")});
+  document.querySelectorAll(".ntab").forEach(function(t){t.classList.remove("on")});
+  document.getElementById("view-"+id).classList.add("on");
+  var map={landing:0,dashboard:1,sub:2};
+  document.querySelectorAll(".ntab")[map[id]].classList.add("on");
+  window.scrollTo({top:0,behavior:"smooth"});
+  if(id==="dashboard"){setTimeout(function(){initDash();},200)}
+}
+
+var dashInited=false;
+function initDash(){
+  if(dashInited)return;dashInited=true;
+  // Animate KPIs
+  animNum("kJobs",4,600);animNum("kTexts",17,900);
+  // Animate progress bars
+  setTimeout(function(){
+    document.querySelectorAll(".jc-prog-fill").forEach(function(b){
+      b.style.width=b.getAttribute("data-w");
+    });
+  },300);
+  buildTimeline();
+  tick();setInterval(tick,1000);
+  // Live feed updates
+  var feedItems=[
+    {txt:"<strong>A&R Plumbing</strong> confirmed May 3 start at Oakridge.",type:"g",icon:"✓"},
+    {txt:"<strong>Summit Townhomes</strong> — Permit approved. Sequence starts May 5.",type:"b",icon:"📅"},
+    {txt:"<strong>Auto-text sent</strong> to CoolAir HVAC — schedule update.",type:"y",icon:"📲"},
+    {txt:"<strong>TXState Electric</strong> flagged material shortage — conduit. Noted.",type:"r",icon:"⚠️"},
+  ];
+  var fi=0;
+  setInterval(function(){
+    var v=document.getElementById("view-dashboard");
+    if(!v||!v.classList.contains("on"))return;
+    var d=feedItems[fi%feedItems.length];fi++;
+    var f=document.getElementById("feedEl");if(!f)return;
+    var item=document.createElement("div");item.className="feed-item";item.style.animation="notifSlide .4s ease";
+    item.innerHTML='<div class="feed-icon fi-'+d.type+'">'+d.icon+'</div><div class="feed-txt">'+d.txt+'</div><div class="feed-time">just now</div>';
+    f.insertBefore(item,f.firstChild);
+    if(f.children.length>10)f.removeChild(f.lastChild);
+    // increment texts
+    var kt=document.getElementById("kTexts");if(kt){var v2=parseInt(kt.textContent)+1;kt.textContent=v2;}
+  },9000);
+}
+
+function tick(){var n=new Date(),h=n.getHours().toString().padStart(2,"0"),m=n.getMinutes().toString().padStart(2,"0"),s=n.getSeconds().toString().padStart(2,"0");var el=document.getElementById("dashClock");if(el)el.textContent=h+":"+m+":"+s}
+
+function animNum(id,target,dur){
+  var el=document.getElementById(id);if(!el)return;
+  var start=Date.now(),from=0;
+  (function run(){
+    var pct=Math.min((Date.now()-start)/dur,1);
+    el.textContent=Math.floor(from+target*pct);
+    if(pct<1)requestAnimationFrame(run);
+  })();
+}
+
+// ── TIMELINE
+function buildTimeline(){
+  var days=["APR 21","APR 22","APR 23","APR 24","APR 25","APR 28","APR 29","APR 30","MAY 1","MAY 2","MAY 3","MAY 5","MAY 7","MAY 12","MAY 18","MAY 22"];
+  var hdr=document.getElementById("tlHeader");if(!hdr||hdr.children.length>0)return;
+  days.forEach(function(d,i){
+    var el=document.createElement("div");el.className="tl-day"+(i===7?" today":"");
+    el.textContent=d;el.style.minWidth="56px";hdr.appendChild(el);
+  });
+  var totalCols=days.length;
+  var trades=[
+    {name:"Framing",blocks:[{s:0,e:2,cls:"tb-done",lbl:"COMPLETE"}]},
+    {name:"Electrical",blocks:[{s:2,e:6,cls:"tb-done",lbl:"DONE"},{s:6,e:9,cls:"tb-active",lbl:"▶ ON SITE"}]},
+    {name:"Plumbing",blocks:[{s:8,e:11,cls:"tb-next",lbl:"STARTS MAY 3"}]},
+    {name:"HVAC",blocks:[{s:10,e:12,cls:"tb-wait",lbl:"~MAY 7"}]},
+    {name:"Insulation",blocks:[{s:11,e:12,cls:"tb-wait",lbl:"~MAY 8"}]},
+    {name:"Drywall",blocks:[{s:12,e:13,cls:"tb-wait",lbl:"~MAY 12"}]},
+    {name:"Painting",blocks:[{s:13,e:14,cls:"tb-wait",lbl:"~MAY 18"}]},
+    {name:"Inspection",blocks:[{s:14,e:15,cls:"tb-wait",lbl:"MAY 22"}]},
+  ];
+  var body=document.getElementById("tlBody");if(!body)return;
+  trades.forEach(function(t){
+    var row=document.createElement("div");row.className="tl-row";
+    var lbl=document.createElement("div");lbl.className="tl-label";lbl.textContent=t.name;
+    var track=document.createElement("div");track.className="tl-track";
+    track.style.minWidth=(totalCols*56)+"px";
+    // today line
+    var todayLine=document.createElement("div");todayLine.className="tl-today-line";
+    todayLine.style.left=(7.5/totalCols*100)+"%";track.appendChild(todayLine);
+    t.blocks.forEach(function(b){
+      var block=document.createElement("div");block.className="tl-block "+b.cls;
+      block.style.left=(b.s/totalCols*100)+"%";
+      block.style.width=((b.e-b.s)/totalCols*100)+"%";
+      block.textContent=b.lbl;track.appendChild(block);
+    });
+    row.appendChild(lbl);row.appendChild(track);body.appendChild(row);
+  });
+}
+
+// ── JOB SELECT
+function selJob(card,job){
+  document.querySelectorAll(".job-card").forEach(function(c){c.classList.remove("sel")});
+  card.classList.add("sel");
+  toast("Viewing "+card.querySelector(".jc-name").textContent,"Job Selected","y");
+}
+
+// ── NOTIFY SUB
+function notifySub(btn,name){
+  btn.outerHTML='<span class="notified-btn">✓ Sent</span>';
+  toast(name+" texted their updated start date. They have 2hrs to confirm.","Sub Notified","g");
+}
+
+// ── CASCADE
+var cascadeRan=false;
+function runCascade(){
+  if(cascadeRan)return;cascadeRan=true;
+  var res=document.getElementById("cascadeResult");
+  res.style.display="flex";
+  toast("6 subs auto-notified with new dates. No phone calls needed.","Cascade Complete ⚡","g");
+  setTimeout(function(){toast("Meridian timeline auto-updated across all trades.","Timeline Updated","y")},2000);
+}
+
+// ── CONFIRM JOB
+function confirmJob(btn){
+  btn.textContent="✓ Confirmed — May 8";
+  btn.style.background="rgba(34,197,94,.1)";btn.style.color="var(--green)";btn.style.border="1px solid rgba(34,197,94,.2)";
+  btn.disabled=true;
+}
+
+// ── TOAST
+function toast(msg,title,type){
+  var box=document.getElementById("notifBox");if(!box)return;
+  var t=document.createElement("div");t.className="toast "+(type==="g"?"green":type==="r"?"red":"");
+  t.innerHTML='<div class="toast-hd"><span class="toast-ico">'+(type==="g"?"✅":type==="r"?"⚠️":"⚡")+'</span><span class="toast-tl '+(type==="g"?"g":type==="r"?"r":"y")+'">'+title+'</span></div><div class="toast-msg">'+msg+'</div>';
+  box.appendChild(t);
+  setTimeout(function(){t.style.opacity="0";t.style.transform="translateX(20px)";t.style.transition="all .4s";setTimeout(function(){t.remove()},400)},4500);
+}
+</script>
+</body>
+</html>
